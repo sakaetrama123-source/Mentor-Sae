@@ -1,0 +1,6 @@
+{
+  "name": "Portal Informasi Desa Digital",
+  "description": "Sistem Informasi Desa Mandiri, Transparansi APBDes, Berita, Layanan Publik, dan CMS Dashboard Admin Terpadu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
