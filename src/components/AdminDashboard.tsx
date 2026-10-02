@@ -1589,15 +1589,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setEditingStat(null);
                     showToast(`Data "${item.label}" berhasil diperbarui menjadi ${item.nilai}!`);
                   }}
-                  className="grid grid-cols-1 gap-4 rounded-xl border border-stone-200 bg-white p-5 sm:grid-cols-4"
+                  className="grid grid-cols-1 gap-4 rounded-xl border border-stone-200 bg-white p-5 sm:grid-cols-6"
                 >
+                  <select
+                    value={editingStat.kategori || 'Utama'}
+                    onChange={(e) =>
+                      setEditingStat({
+                        ...editingStat,
+                        kategori: e.target.value as StatistikItem['kategori'],
+                      })
+                    }
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs"
+                  >
+                    <option value="Utama">Utama (Populasi/Gender)</option>
+                    <option value="Wilayah">Wilayah (Dusun/RW/RT)</option>
+                    <option value="Pekerjaan">Pekerjaan</option>
+                    <option value="Pendidikan">Pendidikan</option>
+                    <option value="Umur">Kelompok Umur</option>
+                    <option value="Agama">Agama</option>
+                  </select>
                   <input
                     type="text"
                     required
                     value={editingStat.label || ''}
                     onChange={(e) => setEditingStat({ ...editingStat, label: e.target.value })}
                     placeholder="Label (cth: Jumlah Penduduk)"
-                    className="rounded-lg border border-stone-300 px-3 py-2 text-xs"
+                    className="rounded-lg border border-stone-300 px-3 py-2 text-xs sm:col-span-2"
                   />
                   <input
                     type="number"
@@ -1618,9 +1635,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   />
                   <button
                     type="submit"
-                    className="rounded-lg bg-emerald-900 px-4 py-2 text-xs font-semibold text-white"
+                    className="rounded-lg bg-emerald-900 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
                   >
-                    Simpan Angka Statistik
+                    Simpan Statistik
                   </button>
                 </form>
               )}
@@ -1629,7 +1646,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="border-b border-stone-200 bg-stone-50 font-semibold text-stone-600">
                     <tr>
-                      <th className="px-5 py-3">Kategori</th>
+                      <th className="px-5 py-3">Kategori Chart</th>
                       <th className="px-5 py-3">Label Statistik</th>
                       <th className="px-5 py-3 text-right">Nilai</th>
                       <th className="px-5 py-3">Keterangan</th>
@@ -1638,20 +1655,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </thead>
                   <tbody className="divide-y divide-stone-100">
                     {db.dataDesa.map((st) => (
-                      <tr key={st.id}>
+                      <tr key={st.id} className="hover:bg-stone-50">
                         <td className="px-5 py-3 font-semibold text-emerald-900">{st.kategori}</td>
                         <td className="px-5 py-3 font-medium text-stone-900">{st.label}</td>
                         <td className="px-5 py-3 text-right font-mono font-bold tabular-nums text-stone-900">
                           {formatAngka(st.nilai)} {st.satuan}
                         </td>
                         <td className="px-5 py-3 text-stone-500">{st.keterangan}</td>
-                        <td className="px-5 py-3 text-right space-x-2">
+                        <td className="px-5 py-3 text-right space-x-3">
                           <button
                             type="button"
                             onClick={() => setEditingStat(st)}
                             className="font-semibold text-emerald-900 hover:underline"
                           >
                             Edit Angka
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await onSaveSection(
+                                'dataDesa',
+                                db.dataDesa.filter((x) => x.id !== st.id)
+                              );
+                              showToast('Indikator data desa dihapus.');
+                            }}
+                            className="font-semibold text-red-600 hover:underline"
+                          >
+                            Hapus
                           </button>
                         </td>
                       </tr>

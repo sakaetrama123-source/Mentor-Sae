@@ -42,7 +42,21 @@ function loadDatabase(): PortalDesaDatabase {
   }
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw) as PortalDesaDatabase;
+    const parsed = JSON.parse(raw) as PortalDesaDatabase;
+    if (parsed.dataDesa && parsed.dataDesa.length < INITIAL_DESA_DATABASE.dataDesa.length) {
+      const existingIds = new Set(parsed.dataDesa.map((d) => d.id));
+      let added = false;
+      INITIAL_DESA_DATABASE.dataDesa.forEach((initItem) => {
+        if (!existingIds.has(initItem.id)) {
+          parsed.dataDesa.push(initItem);
+          added = true;
+        }
+      });
+      if (added) {
+        fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
+      }
+    }
+    return parsed;
   } catch {
     const initial = JSON.parse(JSON.stringify(INITIAL_DESA_DATABASE)) as PortalDesaDatabase;
     fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf-8');

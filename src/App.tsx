@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   PortalDesaDatabase,
   MenuPage,
@@ -16,7 +16,7 @@ import {
   GaleriLightboxModal,
   DokumenPreviewModal,
 } from './components/PublicModals';
-import { Search, Menu, X, ChevronDown, ShieldCheck } from 'lucide-react';
+import { Search, Menu, X, ChevronDown, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 const ALL_PUBLIC_MENUS: MenuPage[] = [
   'BERANDA',
@@ -33,10 +33,29 @@ const ALL_PUBLIC_MENUS: MenuPage[] = [
   'KONTAK',
 ];
 
+function pageToHash(page: MenuPage): string {
+  return '#' + page.toLowerCase().replace(/\s+/g, '-');
+}
+
+function hashToPage(hash: string): MenuPage {
+  if (!hash) return 'BERANDA';
+  const clean = decodeURIComponent(hash.replace(/^#/, ''))
+    .trim()
+    .toUpperCase()
+    .replace(/-/g, ' ');
+  const allValid: MenuPage[] = [...ALL_PUBLIC_MENUS, 'ADMIN'];
+  return allValid.find((m) => m === clean) || 'BERANDA';
+}
+
 export default function App() {
   const [db, setDb] = useState<PortalDesaDatabase>(INITIAL_DESA_DATABASE);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activePage, setActivePage] = useState<MenuPage>('BERANDA');
+  const [activePage, setActivePage] = useState<MenuPage>(() =>
+    hashToPage(window.location.hash)
+  );
+  const [pageHistory, setPageHistory] = useState<MenuPage[]>(() => [
+    hashToPage(window.location.hash),
+  ]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState<boolean>(false);
   const [searchOpen, setSearchOpen] = useState<boolean>(false);
@@ -82,23 +101,91 @@ export default function App() {
     };
   }, []);
 
+  // Initialize browser history state & listen to mobile/browser Back button (popstate)
+  useEffect(() => {
+    const initialPage = hashToPage(window.location.hash);
+    if (!window.history.state) {
+      window.history.replaceState(
+        { page: initialPage, modal: null },
+        '',
+        pageToHash(initialPage)
+      );
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { page?: MenuPage; modal?: string | null } | null;
+
+      // Close modals if the popped state has no active modal
+      if (!state || !state.modal) {
+        setSelectedBerita(null);
+        setLightboxIndex(null);
+        setSelectedDokumen(null);
+        setSearchOpen(false);
+      }
+
+      const targetPage = state?.page || hashToPage(window.location.hash);
+      setActivePage(targetPage);
+      setMobileMenuOpen(false);
+      setMoreDropdownOpen(false);
+      setPageHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : [targetPage]));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   // Sync dynamic theme color & document title
   useEffect(() => {
     if (db.settings.warnaUtama) {
       document.documentElement.style.setProperty('--desa-primary', db.settings.warnaUtama);
     }
-    document.title = `Portal Resmi ${db.settings.namaDesa} – ${db.settings.kabupaten}`;
-  }, [db.settings.warnaUtama, db.settings.namaDesa, db.settings.kabupaten]);
+    document.title = `${activePage === 'BERANDA' ? 'Portal Resmi' : activePage + ' –'} ${db.settings.namaDesa}`;
+  }, [db.settings.warnaUtama, db.settings.namaDesa, activePage]);
 
-  const handleNavigate = (page: MenuPage) => {
-    setActivePage(page);
-    setMobileMenuOpen(false);
-    setMoreDropdownOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const handleNavigate = useCallback(
+    (page: MenuPage) => {
+      setMobileMenuOpen(false);
+      setMoreDropdownOpen(false);
+      setSelectedBerita(null);
+      setLightboxIndex(null);
+      setSelectedDokumen(null);
+      setSearchOpen(false);
+
+      if (page !== activePage) {
+        setActivePage(page);
+        setPageHistory((prev) => [...prev, page]);
+        window.history.pushState({ page, modal: null }, '', pageToHash(page));
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [activePage]
+  );
+
+  const handleGoBack = useCallback(() => {
+    if (pageHistory.length > 1) {
+      window.history.back();
+    } else {
+      handleNavigate('BERANDA');
+    }
+  }, [pageHistory.length, handleNavigate]);
+
+  const closeModalAndSyncHistory = useCallback((closeFn: () => void) => {
+    closeFn();
+    if (window.history.state?.modal) {
+      window.history.back();
+    }
+  }, []);
 
   const handleOpenBerita = (berita: BeritaItem) => {
     setSelectedBerita(berita);
+    window.history.pushState(
+      { page: activePage, modal: 'berita' },
+      '',
+      pageToHash(activePage)
+    );
     fetch(`/api/berita/${berita.id}/view`, { method: 'POST' })
       .then((r) => r.json())
       .then((res) => {
@@ -131,7 +218,6 @@ export default function App() {
   };
 
   const handleSaveSection = async (section: keyof PortalDesaDatabase, data: unknown) => {
-    // Optimistic update
     setDb((prev) => ({ ...prev, [section]: data }));
     if (!adminToken) return;
     const res = await fetch('/api/admin/update', {
@@ -229,7 +315,10 @@ export default function App() {
         onClearDemo={handleClearDemo}
         onResetDemo={handleResetDemo}
         onManageUser={handleManageUser}
-        onBackToPublic={(page) => handleNavigate(page || 'BERANDA')}
+        onBackToPublic={(page) => {
+          if (page) handleNavigate(page);
+          else handleGoBack();
+        }}
       />
     );
   }
@@ -244,6 +333,9 @@ export default function App() {
   const secondaryDesktopMenus: MenuPage[] = ALL_PUBLIC_MENUS.filter(
     (m) => !primaryDesktopMenus.includes(m)
   );
+
+  const previousPageLabel =
+    pageHistory.length > 1 ? pageHistory[pageHistory.length - 2] : 'BERANDA';
 
   return (
     <div className="flex min-h-screen flex-col bg-[#FBF9F5] text-[#1C1917]">
@@ -316,7 +408,14 @@ export default function App() {
           <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setSearchOpen(true)}
+              onClick={() => {
+                setSearchOpen(true);
+                window.history.pushState(
+                  { page: activePage, modal: 'search' },
+                  '',
+                  pageToHash(activePage)
+                );
+              }}
               className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100 whitespace-nowrap"
               aria-label="Cari informasi desa"
             >
@@ -390,6 +489,27 @@ export default function App() {
         )}
       </header>
 
+      {/* CONTEXTUAL BACK NAVIGATION BAR FOR SUB-PAGES */}
+      {activePage !== 'BERANDA' && (
+        <div className="border-b border-stone-200/80 bg-stone-100/70">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5 text-xs sm:px-6 lg:px-8">
+            <button
+              type="button"
+              onClick={handleGoBack}
+              className="flex items-center gap-1.5 font-semibold text-emerald-900 hover:underline"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Kembali ke {previousPageLabel}</span>
+            </button>
+            <div className="flex items-center gap-1.5 text-stone-500">
+              <span>Beranda</span>
+              <span>/</span>
+              <span className="font-semibold text-stone-800">{activePage}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MAIN PUBLIC VIEWPORT */}
       <main className="flex-1">
         <PublicPages
@@ -400,8 +520,20 @@ export default function App() {
           onOpenLightbox={(items, idx) => {
             setLightboxItems(items);
             setLightboxIndex(idx);
+            window.history.pushState(
+              { page: activePage, modal: 'lightbox' },
+              '',
+              pageToHash(activePage)
+            );
           }}
-          onOpenDokumen={(doc) => setSelectedDokumen(doc)}
+          onOpenDokumen={(doc) => {
+            setSelectedDokumen(doc);
+            window.history.pushState(
+              { page: activePage, modal: 'dokumen' },
+              '',
+              pageToHash(activePage)
+            );
+          }}
         />
       </main>
 
@@ -472,7 +604,7 @@ export default function App() {
       {/* GLOBAL MODALS */}
       <SearchModal
         isOpen={searchOpen}
-        onClose={() => setSearchOpen(false)}
+        onClose={() => closeModalAndSyncHistory(() => setSearchOpen(false))}
         db={db}
         onNavigate={handleNavigate}
         onSelectBerita={handleOpenBerita}
@@ -480,20 +612,20 @@ export default function App() {
 
       <BeritaDetailModal
         berita={selectedBerita}
-        onClose={() => setSelectedBerita(null)}
+        onClose={() => closeModalAndSyncHistory(() => setSelectedBerita(null))}
       />
 
       <GaleriLightboxModal
         items={lightboxItems}
         activeIndex={lightboxIndex}
-        onClose={() => setLightboxIndex(null)}
+        onClose={() => closeModalAndSyncHistory(() => setLightboxIndex(null))}
         onChangeIndex={(idx) => setLightboxIndex(idx)}
       />
 
       <DokumenPreviewModal
         dokumen={selectedDokumen}
         settings={db.settings}
-        onClose={() => setSelectedDokumen(null)}
+        onClose={() => closeModalAndSyncHistory(() => setSelectedDokumen(null))}
         onTriggerDownload={handleTriggerDocDownload}
       />
     </div>

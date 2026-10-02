@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   PortalDesaDatabase,
   MenuPage,
@@ -7,6 +8,7 @@ import {
   GaleriItem,
 } from '../types/desa';
 import { SmartImage } from './SmartImage';
+import { DataDesaCharts } from './DataDesaCharts';
 import { formatAngka, formatRupiah, formatTanggalIndo } from '../utils/formatters';
 import {
   ArrowRight,
@@ -89,6 +91,7 @@ export const PublicPages: React.FC<PublicPagesProps> = ({
     return item.fotoSelesai;
   };
 
+  const renderPageContent = () => {
   // ============================================================================
   // 1. HALAMAN BERANDA
   // ============================================================================
@@ -1425,18 +1428,21 @@ export const PublicPages: React.FC<PublicPagesProps> = ({
         </div>
 
         {/* Summary Grid */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {utamaStatistik.map((st) => (
-            <div key={st.id} className="rounded-xl border border-stone-200 bg-white p-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
+          {utamaStatistik.slice(0, 7).map((st) => (
+            <div key={st.id} className="rounded-xl border border-stone-200 bg-white p-4">
               <p className="text-xs font-medium text-stone-500">{st.label}</p>
-              <p className="mt-2 font-mono text-3xl font-semibold tabular-nums text-stone-900">
+              <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-stone-900">
                 {formatAngka(st.nilai)}{' '}
-                <span className="text-sm font-normal text-stone-500">{st.satuan}</span>
+                <span className="text-xs font-normal text-stone-500">{st.satuan}</span>
               </p>
-              <p className="mt-1 text-xs text-stone-500">{st.keterangan}</p>
+              <p className="mt-1 text-[11px] text-stone-500">{st.keterangan}</p>
             </div>
           ))}
         </div>
+
+        {/* Dynamic Recharts Pie & Bar Visualizations */}
+        <DataDesaCharts dataDesa={sortedStatistik} namaDesa={db.settings.namaDesa} />
 
         {/* Detailed Monografi Table */}
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
@@ -2032,5 +2038,20 @@ export const PublicPages: React.FC<PublicPagesProps> = ({
         />
       </div>
     </div>
+  );
+  };
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={activePage}
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {renderPageContent()}
+      </motion.div>
+    </AnimatePresence>
   );
 };
